@@ -105,8 +105,8 @@ def get_subwindow_tracking(im, pos, model_sz, original_sz, avg_chans, out_mode='
         im_patch = cv2.resize(im_patch_original, (model_sz, model_sz))
     else:
         im_patch = im_patch_original
-    # cv2.imshow('crop', im_patch)
-    # cv2.waitKey(0)
+    cv2.imshow('crop', im_patch)
+    cv2.waitKey(1)
     return im_to_torch(im_patch) if out_mode in 'torch' else im_patch
 
 
@@ -196,7 +196,6 @@ def siamese_track(state, im, mask_enable=False, refine_enable=False, device='cpu
 
     # extract scaled crops for search region x at previous target position
     x_crop = Variable(get_subwindow_tracking(im, target_pos, p.instance_size, round(s_x), avg_chans).unsqueeze(0))
-
     if mask_enable:
         score, delta, mask = net.track_mask(x_crop.to(device))
     else:
