@@ -5,6 +5,8 @@
 # --------------------------------------------------------
 import glob
 from tools.test import *
+import pyautogui
+import numpy as np
 
 parser = argparse.ArgumentParser(description='PyTorch Tracking Demo')
 
@@ -38,8 +40,10 @@ if __name__ == '__main__':
     #img_files = sorted(glob.glob(join(args.base_path, '*.jp*')))
     #ims = [cv2.imread(imf) for imf in img_files]
 
-    cap = cv2.VideoCapture(0)
-    ret, img = cap.read()
+    #cap = cv2.VideoCapture(0)
+    #ret, img = cap.read()
+    img = np.asarray(pyautogui.screenshot())[:,:,::-1].copy()
+    img = cv2.resize(img, (1280,360))
 
     # Select ROI
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
@@ -54,7 +58,10 @@ if __name__ == '__main__':
     f = 0 # frame
     while True:
         tic = cv2.getTickCount()
-        ret, img = cap.read()
+        #ret, img = cap.read()
+        img = np.asarray(pyautogui.screenshot())[:,:,::-1].copy()
+        img = cv2.resize(img, (1280,360))
+        #print(img.shape, img.dtype)
         if f == 0:  # init
             target_pos = np.array([x + w / 2, y + h / 2])
             target_sz = np.array([w, h])
@@ -65,6 +72,7 @@ if __name__ == '__main__':
             mask = state['mask'] > state['p'].seg_thr
 
             img[:, :, 2] = (mask > 0) * 255 + (mask == 0) * img[:, :, 2]
+            #print("$",img.shape, img.dtype)
             cv2.polylines(img, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
             cv2.imshow('SiamMask', img)
             key = cv2.waitKey(1)
