@@ -40,8 +40,16 @@ if __name__ == '__main__':
 
     cap = cv2.VideoCapture(0)
     ret, img = cap.read()
+    img = cv2.flip(img, 1)
 
     # Select ROI
+    while True:
+        ret, img = cap.read()
+        img = cv2.flip(img, 1)
+        cv2.imshow("SiamMask - Press space to select ROI", img)
+        if cv2.waitKey(1)&0xFF == ord(' '):
+            break
+    cv2.destroyWindow("SiamMask - Press space to select ROI")
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     try:
@@ -55,12 +63,14 @@ if __name__ == '__main__':
     while True:
         tic = cv2.getTickCount()
         ret, img = cap.read()
+        img = cv2.flip(img, 1)
         if f == 0:  # init
             target_pos = np.array([x + w / 2, y + h / 2])
             target_sz = np.array([w, h])
             state = siamese_init(img, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
         elif f > 0:  # tracking
             state = siamese_track(state, img, mask_enable=True, refine_enable=True, device=device)  # track
+            #print(state.keys())
             location = state['ploygon'].flatten()
             mask = state['mask'] > state['p'].seg_thr
 

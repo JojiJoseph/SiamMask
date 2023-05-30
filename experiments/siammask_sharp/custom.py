@@ -8,6 +8,9 @@ import torch.nn.functional as F
 from utils.load_helper import load_pretrain
 from resnet import resnet50
 
+# To debug
+import numpy as np
+import cv2
 
 class ResDownS(nn.Module):
     def __init__(self, inplane, outplane):
@@ -83,6 +86,7 @@ class UP(RPN):
     def forward(self, z_f, x_f):
         cls = self.cls(z_f, x_f)
         loc = self.loc(z_f, x_f)
+        #print(cls.shape, loc.shape)
         return cls, loc
 
 
@@ -143,6 +147,14 @@ class Refine(nn.Module):
 
         if not(pos is None):
             p3 = corr_feature[:, :, pos[0], pos[1]].view(-1, 256, 1, 1)
+            #print(corr_feature.shape, corr_feature.max(), corr_feature.min())
+            #avg_map = corr_feature.max(dim=1).values
+            #print(avg_map.shape, avg_map.max(), avg_map.min())
+            #cv2.imshow("corr_feature",  cv2.resize((avg_map.cpu().detach().numpy()[0,:,:]*10).astype(np.uint8), (250, 250),interpolation=cv2.INTER_NEAREST))
+            #cv2.waitKey(1)
+            # plt.imshow(cor)
+            # plt.show()
+            
         else:
             p3 = corr_feature.permute(0, 2, 3, 1).contiguous().view(-1, 256, 1, 1)
 
@@ -179,10 +191,15 @@ class Custom(SiamMask):
         return rpn_pred_cls, rpn_pred_loc
 
     def track_mask(self, search):
+        # It seems there is no normalization for search image. Is imagenet model is trained on normalized data.
+        # So will that transfer learning work properly here?
         self.feature, self.search = self.features.forward_all(search)
+        # self.feature is the output maps of backbone (C, H, W) ( 64, 125, 125) (256, 63, 63), (1024, 31, 31)
+        # self.feature is used for refining mask
+        # self.search is the downsampled (in channels) version last output map on backbone (256, 31, 31)
         rpn_pred_cls, rpn_pred_loc = self.rpn(self.zf, self.search)
-        self.corr_feature = self.mask_model.mask.forward_corr(self.zf, self.search)
-        pred_mask = self.mask_model.mask.head(self.corr_feature)
+        self.corr_feature = self.mask_model.mask.forward_corr(self.zf, self.search) # (B, 256, 25, 25)
+        pred_mask = self.mask_model.mask.head(self.corr_feature) # (B, 63*63, 25,25)
         return rpn_pred_cls, rpn_pred_loc, pred_mask
 
     def track_refine(self, pos):

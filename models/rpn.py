@@ -41,6 +41,9 @@ def conv2d_dw_group(x, kernel):
 class DepthCorr(nn.Module):
     def __init__(self, in_channels, hidden, out_channels, kernel_size=3):
         super(DepthCorr, self).__init__()
+        # print("in_channels", in_channels)
+        # print("hidden", hidden)
+        # print("out_channels", out_channels)
         # adjust layer for asymmetrical features
         self.conv_kernel = nn.Sequential(
                 nn.Conv2d(in_channels, hidden, kernel_size=kernel_size, bias=False),
@@ -61,6 +64,7 @@ class DepthCorr(nn.Module):
                 )
 
     def forward_corr(self, kernel, input):
+        # I guess self.conv_kernel and self.conv_search are the adjusting layers as mentioned in the paper
         kernel = self.conv_kernel(kernel)
         input = self.conv_search(input)
         feature = conv2d_dw_group(input, kernel)
@@ -68,5 +72,8 @@ class DepthCorr(nn.Module):
 
     def forward(self, kernel, search):
         feature = self.forward_corr(kernel, search)
+        # kernel (256,7,7)
+        # search (256,31,31)
+        # feature (256,25,25)
         out = self.head(feature)
         return out

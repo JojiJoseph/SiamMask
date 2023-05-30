@@ -5,6 +5,8 @@
 # --------------------------------------------------------
 import glob
 from tools.test import *
+import pyautogui
+import numpy as np
 
 parser = argparse.ArgumentParser(description='PyTorch Tracking Demo')
 
@@ -16,6 +18,9 @@ parser.add_argument('--base_path', default='../../data/tennis', help='datasets')
 parser.add_argument('--cpu', action='store_true', help='cpu mode')
 args = parser.parse_args()
 
+STATE_PRESELECT = 0
+STATE_TRACKING = 1
+demo_state = STATE_PRESELECT
 if __name__ == '__main__':
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -32,38 +37,51 @@ if __name__ == '__main__':
     siammask.eval().to(device)
 
     # Parse Image file
-    img_files = sorted(glob.glob(join(args.base_path, '*.jp*')))
-    ims = [cv2.imread(imf) for imf in img_files]
+    #img_files = sorted(glob.glob(join(args.base_path, '*.jp*')))
+    #ims = [cv2.imread(imf) for imf in img_files]
+
+    #cap = cv2.VideoCapture(0)
+    #ret, img = cap.read()
+    print(pyautogui.__dir__())
+    img = np.asarray(pyautogui.getWindowsWithTitle("Penrose Museum (DEBUG)")[0].screenshot())[:,:,::-1].copy()
+    img = cv2.resize(img, (1280,360))
 
     # Select ROI
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     try:
-        init_rect = cv2.selectROI('SiamMask', ims[0], False, False)
+        init_rect = cv2.selectROI('SiamMask', img, False, False)
         x, y, w, h = init_rect
     except:
         exit()
 
     toc = 0
-    for f, im in enumerate(ims):
+    f = 0 # frame
+    while True:
         tic = cv2.getTickCount()
+        #ret, img = cap.read()
+        img = np.asarray(pyautogui.screenshot())[:,:,::-1].copy()
+        img = cv2.resize(img, (1280,360))
+        print(img.shape, img.dtype)
         if f == 0:  # init
             target_pos = np.array([x + w / 2, y + h / 2])
             target_sz = np.array([w, h])
-            state = siamese_init(im, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
+            state = siamese_init(img, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
         elif f > 0:  # tracking
-            state = siamese_track(state, im, mask_enable=True, refine_enable=True, device=device)  # track
+            state = siamese_track(state, img, mask_enable=True, refine_enable=True, device=device)  # track
             location = state['ploygon'].flatten()
             mask = state['mask'] > state['p'].seg_thr
 
-            im[:, :, 2] = (mask > 0) * 255 + (mask == 0) * im[:, :, 2]
-            cv2.polylines(im, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
-            cv2.imshow('SiamMask', im)
-            key = cv2.waitKey(100)
+            img[:, :, 2] = (mask > 0) * 255 + (mask == 0) * img[:, :, 2]
+            print("$",img.shape, img.dtype)
+            cv2.polylines(img, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
+            cv2.imshow('SiamMask', img)
+            key = cv2.waitKey(1)
             if key > 0:
                 break
 
         toc += cv2.getTickCount() - tic
+        f += 1
     toc /= cv2.getTickFrequency()
     fps = f / toc
     print('SiamMask Time: {:02.1f}s Speed: {:3.1f}fps (with visulization!)'.format(toc, fps))

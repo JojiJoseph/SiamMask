@@ -61,6 +61,7 @@ def to_torch(ndarray):
 def im_to_torch(img):
     img = np.transpose(img, (2, 0, 1))  # C*H*W
     img = to_torch(img).float()
+    #print("img max min", img.max(), img.min())
     return img
 
 
@@ -107,6 +108,7 @@ def get_subwindow_tracking(im, pos, model_sz, original_sz, avg_chans, out_mode='
         im_patch = im_patch_original
     cv2.imshow('crop', im_patch)
     cv2.waitKey(1)
+    #exit()
     return im_to_torch(im_patch) if out_mode in 'torch' else im_patch
 
 
@@ -143,23 +145,37 @@ def siamese_init(im, target_pos, target_sz, model, hp=None, device='cpu'):
     p.ratios = model.anchors['ratios']
     p.anchor_num = model.anchor_num
     p.anchor = generate_anchor(model.anchors, p.score_size)
+    #print("im.shape", im.shape)
     avg_chans = np.mean(im, axis=(0, 1))
+    #print("avg_chans", avg_chans)
+    #exit()
 
     wc_z = target_sz[0] + p.context_amount * sum(target_sz)
     hc_z = target_sz[1] + p.context_amount * sum(target_sz)
+    #print("wc_z", wc_z, target_sz[0], p.context_amount, target_sz)
+    #exit()
     s_z = round(np.sqrt(wc_z * hc_z))
     # initialize the exemplar
     z_crop = get_subwindow_tracking(im, target_pos, p.exemplar_size, s_z, avg_chans)
 
-    z = Variable(z_crop.unsqueeze(0))
-    net.template(z.to(device))
-
+    #print("z_crop.shape", z_crop.shape)
+    z = Variable(z_crop.unsqueeze(0)) # Adding batch dimension
+    net.template(z.to(device)) # Set initial template
+    #print("p.score_size", p.score_size)
+    #exit()
     if p.windowing == 'cosine':
-        window = np.outer(np.hanning(p.score_size), np.hanning(p.score_size))
+        window = np.outer(np.hanning(p.score_size), np.hanning(p.score_size)) # generate a nice 2D window
+        # import matplotlib.pyplot as plt
+        # plt.imshow(window)
+        # plt.colorbar()
+        # plt.show()
     elif p.windowing == 'uniform':
         window = np.ones((p.score_size, p.score_size))
-    window = np.tile(window.flatten(), p.anchor_num)
-
+    window = np.tile(window.flatten(), p.anchor_num) # TODO what happens in the code
+    # import matplotlib.pyplot as plt
+    # plt.imshow(window)
+    # plt.colorbar()
+    # plt.show()
     state['p'] = p
     state['net'] = net
     state['avg_chans'] = avg_chans
@@ -183,31 +199,33 @@ def siamese_track(state, im, mask_enable=False, refine_enable=False, device='cpu
     scale_x = p.exemplar_size / s_x
     d_search = (p.instance_size - p.exemplar_size) / 2
     pad = d_search / scale_x
-    s_x = s_x + 2 * pad
+    s_x = s_x + 2 * pad # The width and height of the crop before resizing
     crop_box = [target_pos[0] - round(s_x) / 2, target_pos[1] - round(s_x) / 2, round(s_x), round(s_x)]
 
-    if debug:
-        im_debug = im.copy()
-        crop_box_int = np.int0(crop_box)
-        cv2.rectangle(im_debug, (crop_box_int[0], crop_box_int[1]),
-                      (crop_box_int[0] + crop_box_int[2], crop_box_int[1] + crop_box_int[3]), (255, 0, 0), 2)
-        cv2.imshow('search area', im_debug)
-        cv2.waitKey(0)
+    #if debug:
+    im_debug = im.copy()
+    crop_box_int = np.int0(crop_box)
+    cv2.rectangle(im_debug, (crop_box_int[0], crop_box_int[1]),
+                    (crop_box_int[0] + crop_box_int[2], crop_box_int[1] + crop_box_int[3]), (255, 0, 0), 2)
+    cv2.imshow('search area', im_debug)
+    cv2.waitKey(1)
 
     # extract scaled crops for search region x at previous target position
     x_crop = Variable(get_subwindow_tracking(im, target_pos, p.instance_size, round(s_x), avg_chans).unsqueeze(0))
+
     if mask_enable:
         score, delta, mask = net.track_mask(x_crop.to(device))
     else:
         score, delta = net.track(x_crop.to(device))
 
     delta = delta.permute(1, 2, 3, 0).contiguous().view(4, -1).data.cpu().numpy()
-    score = F.softmax(score.permute(1, 2, 3, 0).contiguous().view(2, -1).permute(1, 0), dim=1).data[:,
-            1].cpu().numpy()
+    score = F.softmax(score.permute(1, 2, 3, 0).contiguous().view(2, -1).permute(1, 0), dim=1)
+    score = score.data[:,
+            1].cpu().numpy() # Only foreground scores
 
     delta[0, :] = delta[0, :] * p.anchor[:, 2] + p.anchor[:, 0]
     delta[1, :] = delta[1, :] * p.anchor[:, 3] + p.anchor[:, 1]
-    delta[2, :] = np.exp(delta[2, :]) * p.anchor[:, 2]
+    delta[2, :] = np.exp(delta[2, :]) * p.anchor[:, 2] # Because predicted width and height are in log scale
     delta[3, :] = np.exp(delta[3, :]) * p.anchor[:, 3]
 
     def change(r):
