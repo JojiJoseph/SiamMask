@@ -69,21 +69,25 @@ if __name__ == '__main__':
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
     cv2.setMouseCallback("SiamMask", cb)
 
-
+    paused = False
     # Select ROI
     while demo_state == STATE_PRESELECT:
-        ret, img = cap.read()
-        img = cv2.flip(img, 1)
+        if not paused:
+            ret, img = cap.read()
+            img = cv2.flip(img, 1)
         img_out = img.copy()
         if roi_state == ROI_START or roi_state == ROI_FINISH:
             cv2.rectangle(img_out, roi_p1, roi_p2, (255, 0, 0), 4)
         cv2.imshow("SiamMask", img_out)
-        if cv2.waitKey(1)&0xFF == ord(' ') and roi_state == ROI_FINISH:
+        key = cv2.waitKey(1)&0xFF
+        if key == ord(' ') and roi_state == ROI_FINISH:
             x, y = roi_p1
             w = roi_p2[0] - x
             h = roi_p2[1] - y
             demo_state = STATE_TRACKING
             break
+        if key == ord('p'):
+            paused = not paused
     #cv2.destroyWindow("SiamMask")
     
     #cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
