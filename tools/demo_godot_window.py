@@ -5,6 +5,7 @@
 # --------------------------------------------------------
 import glob
 from tools.test import *
+import socket
 
 parser = argparse.ArgumentParser(description='PyTorch Tracking Demo')
 
@@ -14,10 +15,33 @@ parser.add_argument('--config', dest='config', default='config_davis.json',
                     help='hyper-parameter of SiamMask in json format')
 parser.add_argument('--base_path', default='../../data/tennis', help='datasets')
 parser.add_argument('--cpu', action='store_true', help='cpu mode')
+parser.add_argument('--port', type=int, default=3333)
 args = parser.parse_args()
 
-STATE_PRESELECT = 0
-STATE_TRACKING = 1
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+server_address = ("127.0.0.1", args.port)
+sock.bind(server_address)
+
+sock.listen()
+
+print("Waiting for godot program to connect!")
+
+def godot_read():
+    conn, addr = sock.accept()
+    data = b""
+    while True:
+        new_data = conn.recv(1024)
+        data = data + new_data
+        if not new_data: # Disconnected
+            break
+    img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    return True, img
+
+
+STATE_PRESELECT = 0 # Indicates ROI is not selected
+STATE_TRACKING = 1 # ROI is selected, now the tracker is tracking
 demo_state = STATE_PRESELECT
 
 ROI_IDLE = 0
@@ -44,21 +68,15 @@ if __name__ == '__main__':
 
     siammask.eval().to(device)
 
-    # Parse Image file
-    #img_files = sorted(glob.glob(join(args.base_path, '*.jp*')))
-    #ims = [cv2.imread(imf) for imf in img_files]
+    ret, img = godot_read()
 
-    cap = cv2.VideoCapture(0)
-    ret, img = cap.read()
-    img = cv2.flip(img, 1)
-
-    def cb(event, x, y, flags, params):
+    def mouse_callback(event, x, y, flags, params):
         global roi_state, roi_p1, roi_p2
         if roi_state == ROI_IDLE:
             if event == cv2.EVENT_LBUTTONDOWN:
                 roi_state = ROI_START
                 roi_p1 = x, y
-                rot_p2 = x, y
+                roi_p2 = x, y
         elif roi_state == ROI_START:
             if event == cv2.EVENT_MOUSEMOVE:
                 roi_p2 = x, y
@@ -67,13 +85,12 @@ if __name__ == '__main__':
                 
         
     cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
-    cv2.setMouseCallback("SiamMask", cb)
+    cv2.setMouseCallback("SiamMask", mouse_callback)
 
 
     # Select ROI
     while demo_state == STATE_PRESELECT:
-        ret, img = cap.read()
-        img = cv2.flip(img, 1)
+        ret, img = godot_read()
         img_out = img.copy()
         if roi_state == ROI_START or roi_state == ROI_FINISH:
             cv2.rectangle(img_out, roi_p1, roi_p2, (255, 0, 0), 4)
@@ -84,29 +101,18 @@ if __name__ == '__main__':
             h = roi_p2[1] - y
             demo_state = STATE_TRACKING
             break
-    #cv2.destroyWindow("SiamMask")
-    
-    #cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
-    # cv2.setWindowProperty("SiamMask", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-    # try:
-    #     init_rect = cv2.selectROI('SiamMask', img, False, False)
-    #     x, y, w, h = init_rect
-    # except:
-    #     exit()
 
     toc = 0
-    f = 0 # frame
+    frame_idx = 0
     while True:
         tic = cv2.getTickCount()
-        ret, img = cap.read()
-        img = cv2.flip(img, 1)
-        if f == 0:  # init
+        ret, img = godot_read()
+        if frame_idx == 0:  # init
             target_pos = np.array([x + w / 2, y + h / 2])
             target_sz = np.array([w, h])
             state = siamese_init(img, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
-        elif f > 0:  # tracking
+        elif frame_idx > 0:  # tracking
             state = siamese_track(state, img, mask_enable=True, refine_enable=True, device=device)  # track
-            #print(state.keys())
             location = state['ploygon'].flatten()
             mask = state['mask'] > state['p'].seg_thr
 
@@ -118,7 +124,7 @@ if __name__ == '__main__':
                 break
 
         toc += cv2.getTickCount() - tic
-        f += 1
+        frame_idx += 1
     toc /= cv2.getTickFrequency()
-    fps = f / toc
+    fps = frame_idx / toc
     print('SiamMask Time: {:02.1f}s Speed: {:3.1f}fps (with visulization!)'.format(toc, fps))
