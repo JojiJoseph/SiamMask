@@ -205,10 +205,10 @@ def siamese_track(state, im, mask_enable=False, refine_enable=False, device='cpu
     #if debug:
     im_debug = im.copy()
     crop_box_int = np.int0(crop_box)
-    cv2.rectangle(im_debug, (crop_box_int[0], crop_box_int[1]),
-                    (crop_box_int[0] + crop_box_int[2], crop_box_int[1] + crop_box_int[3]), (255, 0, 0), 2)
-    cv2.imshow('search area', im_debug)
-    cv2.waitKey(1)
+    # cv2.rectangle(im_debug, (crop_box_int[0], crop_box_int[1]),
+    #                 (crop_box_int[0] + crop_box_int[2], crop_box_int[1] + crop_box_int[3]), (255, 0, 0), 2)
+    # cv2.imshow('search area', im_debug)
+    # cv2.waitKey(1)
 
     # extract scaled crops for search region x at previous target position
     x_crop = Variable(get_subwindow_tracking(im, target_pos, p.instance_size, round(s_x), avg_chans).unsqueeze(0))
@@ -329,6 +329,7 @@ def siamese_track(state, im, mask_enable=False, refine_enable=False, device='cpu
     state['score'] = score[best_pscore_id]
     state['mask'] = mask_in_img if mask_enable else []
     state['ploygon'] = rbox_in_img if mask_enable else []
+    state['crop_box'] = crop_box_int
     return state
 
 def siamese_active_track(state, im, mask_enable=False, refine_enable=False, device='cpu', debug=False):
