@@ -47,7 +47,7 @@ export SiamMask=$PWD
 - Setup python environment
 ```
 conda create -n siammask python=3.6
-source activate siammask
+conda activate siammask
 pip install -r requirements.txt
 bash make.sh
 ```
@@ -55,6 +55,8 @@ bash make.sh
 ```
 export PYTHONPATH=$PWD:$PYTHONPATH
 ```
+
+Once the environment `siammask` created the export commands can be automated by `source setup_path.sh`
 
 ## Demo
 - [Setup](#environment-setup) your environment
@@ -76,6 +78,13 @@ python ../../tools/demo.py --resume SiamMask_DAVIS.pth --config config_davis.jso
   <img src="http://www.robots.ox.ac.uk/~qwang/SiamMask/img/SiamMask_demo.gif" width="500px" />
 </div>
 
+- Run `demo_video.py`
+
+```shell
+cd $SiamMask/experiments/siammask_sharp
+export PYTHONPATH=$PWD:$PYTHONPATH
+python ../../tools/demo_video.py --resume SiamMask_DAVIS.pth --config config_davis.json --video <video_path>
+```
 
 ## Testing
 - [Setup](#environment-setup) your environment

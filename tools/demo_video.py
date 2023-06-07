@@ -88,31 +88,31 @@ if __name__ == '__main__':
 
     paused = True
     # Select ROI
-    while demo_state == STATE_PRESELECT:
-        #if not paused:
-            #ret, img = cap.read()
-        img = frames[frame_idx]
-        img = cv2.flip(img, 1)
-        img_out = img.copy()
-        if roi_state == ROI_START or roi_state == ROI_FINISH:
-            cv2.rectangle(img_out, roi_p1, roi_p2, (255, 0, 0), 4)
-        if paused:
-            cv2.putText(img_out, "Paused!", [40, 40],cv2.FONT_HERSHEY_PLAIN,2,(0,255,0))
-        cv2.imshow("SiamMask", img_out)
-        key = cv2.waitKey(100)&0xFF
-        if key == ord(' ') and roi_state == ROI_FINISH:
-            x, y = roi_p1
-            w = roi_p2[0] - x
-            h = roi_p2[1] - y
-            demo_state = STATE_TRACKING
-            break
-        if key == ord('p'):
-            paused = not paused
-        if not paused:
-            frame_idx += 1
-            if frame_idx == len(frames):
-                frame_idx -= 1
-            cv2.setTrackbarPos("frame", "SiamMask", frame_idx)
+    # while demo_state == STATE_PRESELECT:
+    #     #if not paused:
+    #         #ret, img = cap.read()
+    #     img = frames[frame_idx]
+    #     img = cv2.flip(img, 1)
+    #     img_out = img.copy()
+    #     if roi_state == ROI_START or roi_state == ROI_FINISH:
+    #         cv2.rectangle(img_out, roi_p1, roi_p2, (255, 0, 0), 4)
+    #     if paused:
+    #         cv2.putText(img_out, "Paused!", [40, 40],cv2.FONT_HERSHEY_PLAIN,2,(0,255,0))
+    #     cv2.imshow("SiamMask", img_out)
+    #     key = cv2.waitKey(100)&0xFF
+    #     if key == ord(' ') and roi_state == ROI_FINISH:
+    #         x, y = roi_p1
+    #         w = roi_p2[0] - x
+    #         h = roi_p2[1] - y
+    #         demo_state = STATE_TRACKING
+    #         break
+    #     if key == ord('p'):
+    #         paused = not paused
+    #     if not paused:
+    #         frame_idx += 1
+    #         if frame_idx == len(frames):
+    #             frame_idx -= 1
+    #         cv2.setTrackbarPos("frame", "SiamMask", frame_idx)
     #cv2.destroyWindow("SiamMask")
     
     #cv2.namedWindow("SiamMask", cv2.WND_PROP_FULLSCREEN)
@@ -134,44 +134,68 @@ if __name__ == '__main__':
         img = frames[frame_idx]
         img = cv2.flip(img, 1)
         img_out = img.copy()
-        if f == 0:  # init
-            target_pos = np.array([x + w / 2, y + h / 2])
-            target_sz = np.array([w, h])
-            cfg['hp']['windowing'] = 'uniform'
-            state = siamese_init(img_out, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
-        elif f > 0:  # tracking
-            state = siamese_track(state, img_out, mask_enable=True, refine_enable=True, device=device)  # track
-            # print(state.keys(), state['score'])
-            # print(state['window'].shape)
-            score = state['score']
-            location = state['ploygon'].flatten()
-            mask = state['mask'] > state['p'].seg_thr
-
-            img_out[:, :, 2] = (mask > 0) * 255 + (mask == 0) * img_out[:, :, 2]
-            cv2.polylines(img_out, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
-            target_pos = state['target_pos']
-            target_sz = state['target_sz']
-            p1 = target_pos - target_sz/2
-            p2 = target_pos + target_sz/2
-            cv2.putText(img_out, str(int(score*100)), np.int0(target_pos),cv2.FONT_HERSHEY_PLAIN,2,(255,0,0))
-            cv2.rectangle(img_out, np.int0(p1), np.int0(p2), (255,0,0), 3)
-            if 'crop_box' in state:
-                crop_box = state['crop_box'] # x1, y1, w, h
-                cv2.rectangle(img_out, (crop_box[0], crop_box[1]),
-                    (crop_box[0] + crop_box[2], crop_box[1] + crop_box[3]), (0, 0, 255), 5)
+        if demo_state == STATE_PRESELECT:
+            if roi_state == ROI_START or roi_state == ROI_FINISH:
+                cv2.rectangle(img_out, roi_p1, roi_p2, (255, 0, 0), 4)
             if paused:
                 cv2.putText(img_out, "Paused!", [40, 40],cv2.FONT_HERSHEY_PLAIN,2,(0,255,0))
-            cv2.imshow('SiamMask', img_out)
-            key = cv2.waitKey(100)
+            cv2.imshow("SiamMask", img_out)
+            key = cv2.waitKey(int(1000/30))&0xFF
+            if key == ord(' ') and roi_state == ROI_FINISH:
+                x, y = roi_p1
+                w = roi_p2[0] - x
+                h = roi_p2[1] - y
+                demo_state = STATE_TRACKING
+                f = -1
             if key == ord('p'):
                 paused = not paused
-            if key  == ord('q'):
-                break
             if not paused:
                 frame_idx += 1
                 if frame_idx == len(frames):
                     frame_idx -= 1
                 cv2.setTrackbarPos("frame", "SiamMask", frame_idx)
+        else:
+            if f == 0:  # init
+                target_pos = np.array([x + w / 2, y + h / 2])
+                target_sz = np.array([w, h])
+                cfg['hp']['windowing'] = 'uniform'
+                state = siamese_init(img_out, target_pos, target_sz, siammask, cfg['hp'], device=device)  # init tracker
+            elif f > 0:  # tracking
+                state = siamese_track(state, img_out, mask_enable=True, refine_enable=True, device=device)  # track
+                # print(state.keys(), state['score'])
+                # print(state['window'].shape)
+                score = state['score']
+                location = state['ploygon'].flatten()
+                mask = state['mask'] > state['p'].seg_thr
+
+                img_out[:, :, 2] = (mask > 0) * 255 + (mask == 0) * img_out[:, :, 2]
+                cv2.polylines(img_out, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
+                target_pos = state['target_pos']
+                target_sz = state['target_sz']
+                p1 = target_pos - target_sz/2
+                p2 = target_pos + target_sz/2
+                cv2.putText(img_out, str(int(score*100)), np.int0(target_pos),cv2.FONT_HERSHEY_PLAIN,2,(255,0,0))
+                cv2.rectangle(img_out, np.int0(p1), np.int0(p2), (255,0,0), 3)
+                if 'crop_box' in state:
+                    crop_box = state['crop_box'] # x1, y1, w, h
+                    cv2.rectangle(img_out, (crop_box[0], crop_box[1]),
+                        (crop_box[0] + crop_box[2], crop_box[1] + crop_box[3]), (0, 0, 255), 5)
+                if paused:
+                    cv2.putText(img_out, "Paused!", [40, 40],cv2.FONT_HERSHEY_PLAIN,2,(0,255,0))
+                cv2.imshow('SiamMask', img_out)
+                key = cv2.waitKey(int(1000/30))
+                if key == ord('p'):
+                    paused = not paused
+                if key  == ord('q'):
+                    break
+                if key == ord('r'):
+                    demo_state = STATE_PRESELECT
+                    roi_state = ROI_IDLE
+                if not paused:
+                    frame_idx += 1
+                    if frame_idx == len(frames):
+                        frame_idx -= 1
+                    cv2.setTrackbarPos("frame", "SiamMask", frame_idx)
 
         toc += cv2.getTickCount() - tic
         f += 1
